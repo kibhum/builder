@@ -1,7 +1,7 @@
 mod fields;
 use fields::{
-    builder_field_definitions, builder_init_values, builder_methods, optional_default_asserts,
-    original_struct_setters,
+    builder_definitions, builder_field_definitions, builder_impl_for_struct, builder_init_values,
+    builder_methods, marker_trait_and_structs, optional_default_asserts, original_struct_setters,
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -9,6 +9,7 @@ use syn::{
     Attribute, Data::Struct, DataStruct, DeriveInput, Field, Fields::Named, FieldsNamed, Ident,
     Type, punctuated::Punctuated, token::Comma,
 };
+mod util;
 
 const DEFAULTS_ATTRIBUTES_NAME: &str = "builder_defaults";
 
@@ -16,8 +17,8 @@ pub fn create_builder(item: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse2(item).unwrap();
     let name = ast.ident;
 
-    let builder = format_ident!("{}Builder", name);
-    let use_defaults = use_defaults(&ast.attrs);
+    // let builder = format_ident!("{}Builder", name);
+    // let use_defaults = use_defaults(&ast.attrs);
 
     let fields = match ast.data {
         Struct(DataStruct {
@@ -27,41 +28,46 @@ pub fn create_builder(item: TokenStream) -> TokenStream {
         _ => unimplemented!("Only implemented for structs"),
     };
 
-    let default_assertions = if use_defaults {
-        optional_default_asserts(fields)
-    } else {
-        vec![]
-    };
+    // let default_assertions = if use_defaults {
+    //     optional_default_asserts(fields)
+    // } else {
+    //     vec![]
+    // };
 
-    let builder_fields = builder_field_definitions(fields);
-    let builder_inits = builder_init_values(fields);
-    let builder_methods = builder_methods(fields);
-    let original_struct_set_fields = original_struct_setters(fields, use_defaults);
+    let builder = builder_definitions(&name, fields);
+    let builder_method_for_struct = builder_impl_for_struct(&name, fields);
+    let marker_and_structs = marker_trait_and_structs(&name, fields);
+    let builder_methods = builder_methods(&name, fields);
 
     quote! {
-        struct #builder {
-            #(#builder_fields,)*
-        }
+        // struct #builder {
+        //     #(#builder_fields,)*
+        // }
 
-        impl #builder{
-            #(#builder_methods)*
+        // impl #builder{
+        //     #(#builder_methods)*
 
-            pub fn build(self)->#name{
-                #name{
-                    #(#original_struct_set_fields,)*
-                }
-            }
-        }
+        //     pub fn build(self)->#name{
+        //         #name{
+        //             #(#original_struct_set_fields,)*
+        //         }
+        //     }
+        // }
 
-        impl #name{
-            pub fn builder()->#builder{
-                #builder{
-                    #(#builder_inits,)*
-                }
-            }
-        }
+        // impl #name{
+        //     pub fn builder()->#builder{
+        //         #builder{
+        //             #(#builder_inits,)*
+        //         }
+        //     }
+        // }
 
-        #(#default_assertions)*
+        // #(#default_assertions)*
+
+        #builder
+        #builder_method_for_struct
+        #marker_and_structs
+        #builder_methods
     }
 }
 
