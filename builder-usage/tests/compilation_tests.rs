@@ -14,6 +14,4 @@
 //     not: DoesNotImplementDefault,
 // }
 
-// fn main() {
-
-// }
+// fn main() {}

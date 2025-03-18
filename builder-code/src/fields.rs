@@ -6,6 +6,29 @@ use syn::{
     Data::Struct, DataStruct, DeriveInput, Expr, ExprLit, Field, Fields::Named, FieldsNamed, Ident,
     Lit, LitStr, Meta, MetaNameValue, Type, punctuated::Punctuated, spanned::Spanned, token::Comma,
 };
+
+trait Strategy {
+    fn fallback(&self, field_type: &Type, field_name_as_string: String) -> TokenStream2;
+}
+
+enum ConcreteStrategy {
+    Default,
+    Panic,
+}
+
+impl Strategy for ConcreteStrategy {
+    fn fallback(&self, field_type: &Type, field_name_as_string: String) -> TokenStream2 {
+        match self {
+            ConcreteStrategy::Default => {
+                quote! {unwrap_or_default()}
+            }
+            ConcreteStrategy::Panic => {
+                quote! {unwrap_or_default()}
+            }
+        }
+    }
+}
+
 pub fn optional_default_asserts(fields: &Punctuated<Field, Comma>) -> Vec<TokenStream2> {
     fields
         .iter()
@@ -199,7 +222,7 @@ fn default_fallback() -> TokenStream2 {
 
 pub fn builder_methods(name: &Ident, fields: &Punctuated<Field, Comma>) -> TokenStream2 {
     let builder_name = create_builder_ident(name);
-    let set_fields = original_struct_setters(fields);
+    let set_fields = original_struct_setters(&ConcreteStrategy::Default, fields);
     let assignments_for_all_fields = get_assignments_for_fields(fields);
     let mut previous_field = None;
     let reverse_names_and_types: Vec<&Field> = fields.iter().rev().collect();
@@ -350,14 +373,21 @@ fn get_assignments_for_fields(fields: &Punctuated<Field, Comma>) -> Vec<TokenStr
         .collect()
 }
 
-pub fn original_struct_setters(fields: &Punctuated<Field, Comma>) -> Vec<TokenStream2> {
+pub fn original_struct_setters<T>(
+    strategy: &T,
+    fields: &Punctuated<Field, Comma>,
+) -> Vec<TokenStream2>
+where
+    T: Strategy,
+{
     fields
         .iter()
         .map(|f| {
-            let field_name = &f.ident;
+            let (field_name, field_type) = get_name_and_type(f);
             let field_name_as_string = field_name.as_ref().unwrap().to_string();
 
-            let handle_type = panic_fallback(field_name_as_string);
+            // let handle_type = panic_fallback(field_name_as_string);
+            let handle_type = strategy.fallback(field_type, field_name_as_string);
 
             quote! {
                 #field_name: self.#field_name.#handle_type
